@@ -17,6 +17,9 @@ public class Deck {
     private String targetLang;
     @Column(columnDefinition = "TEXT")
     private String description;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id" , nullable = false)
+    private User user;
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -24,10 +27,13 @@ public class Deck {
     public Deck() {
     }
 
-    public Deck(String name, String targetLang, String description) {
-        this.description = description;
-        this.targetLang = targetLang;
+    public Deck(Long id, String name, String targetLang, String description, User user, Instant createdAt) {
+        this.id = id;
         this.name = name;
+        this.targetLang = targetLang;
+        this.description = description;
+        this.user = user;
+        this.createdAt = createdAt;
     }
 
     public Deck setName(String name) {
@@ -42,6 +48,15 @@ public class Deck {
 
     public Deck setDescription(String description) {
         this.description = description;
+        return this;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public Deck setUser(User user) {
+        this.user = user;
         return this;
     }
 
