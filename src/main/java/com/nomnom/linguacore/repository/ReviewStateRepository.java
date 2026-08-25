@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface ReviewStateRepository extends JpaRepository<ReviewState,Long> {
     List<ReviewState> findByDueDateLessThanEqual(LocalDate date);
     Optional<ReviewState> findByCardId(Long cardId);
+    List<ReviewState> findByDueDateLessThanEqualAndCardDeckUserId(LocalDate date, Long userId);
 }

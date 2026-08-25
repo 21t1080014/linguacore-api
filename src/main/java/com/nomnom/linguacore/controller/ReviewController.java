@@ -14,17 +14,15 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/reviews")
 public class ReviewController {
-    private final CardService cardService;
     private final ReviewService reviewService;
 
-    public ReviewController(CardService cardService, ReviewService reviewService) {
-        this.cardService = cardService;
+    public ReviewController( ReviewService reviewService) {
         this.reviewService = reviewService;
     }
 
     @GetMapping("/due")
     public ResponseEntity<List<CardResponse>> getDueCards(){
-        return ResponseEntity.ok(cardService.getDueCards());
+        return ResponseEntity.ok(reviewService.getDueCards());
     }
     @PostMapping
     public ResponseEntity<ReviewResultResponse> recordReview(@Valid @RequestBody CreateReviewRequest request) {
