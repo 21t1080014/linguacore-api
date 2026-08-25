@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/linguadb}
+    username: ${DB_USERNAME:lingua}
+    password: ${DB_PASSWORD:}
+jwt:
+  secret: ${JWT_SECRET:test-secret-key-dai-it-nhat-32-ky-tu-cho-junit}
