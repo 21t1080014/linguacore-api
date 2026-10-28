@@ -41,7 +41,8 @@ public class CardService {
         }
         return deck;
     }
-    private Card findOwnedCard(Long id){
+    @Transactional
+    public Card findOwnedCard(Long id){
         Card card = cardRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("Card not found: " +id));
         if(!card.getDeck().getUser().getId().equals(getCurrentUser().getId())){
             throw new ResourceNotFoundException("Card not found: " + id);

@@ -8,12 +8,24 @@ public class ReviewResultResponse {
     private Integer intervalDays;
     private Integer repetitions;
     private BigDecimal easiness;
+    private Boolean correct;       // null ở chế độ tự chấm
+    private String correctAnswer;  // null ở chế độ tự chấm
 
-    public ReviewResultResponse(LocalDate dueDate, Integer intervalDays, Integer repetitions, BigDecimal easiness) {
+    public ReviewResultResponse(LocalDate dueDate, Integer intervalDays, Integer repetitions, BigDecimal easiness, Boolean correct, String correctAnswer) {
         this.dueDate = dueDate;
         this.intervalDays = intervalDays;
         this.repetitions = repetitions;
         this.easiness = easiness;
+        this.correct = correct;
+        this.correctAnswer = correctAnswer;
+    }
+
+    public Boolean getCorrect() {
+        return correct;
+    }
+
+    public String getCorrectAnswer() {
+        return correctAnswer;
     }
 
     public BigDecimal getEasiness() {
