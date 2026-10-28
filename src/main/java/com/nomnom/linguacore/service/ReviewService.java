@@ -6,6 +6,7 @@ import com.nomnom.linguacore.dto.response.ReviewResultResponse;
 import com.nomnom.linguacore.entity.ReviewLog;
 import com.nomnom.linguacore.entity.ReviewState;
 import com.nomnom.linguacore.entity.User;
+import com.nomnom.linguacore.enums.AnswerType;
 import com.nomnom.linguacore.exception.ResourceNotFoundException;
 import com.nomnom.linguacore.exception.UnauthorizedException;
 import com.nomnom.linguacore.mapper.CardMapper;
@@ -21,6 +22,9 @@ import java.util.List;
 
 @Service
 public class ReviewService {
+    private static final int GRADE_CORRECT = 4;  // SM-2: nhớ sau một lúc ngập ngừng → EF giữ nguyên
+    private static final int GRADE_WRONG = 1;    // dưới 3 = quên → về đầu chu trình
+
     private final ReviewStateRepository reviewStateRepository;
     private final ReviewLogRepository reviewLogRepository;
     private final UserRepository userRepository;
@@ -46,45 +50,42 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewResultResponse recordReview(CreateReviewRequest request){
-        // 1. Tìm review_state của card
-        ReviewState state = reviewStateRepository.findByCardId(request.getCardId())
-                .orElseThrow(() -> new ResourceNotFoundException("Review state not found for card: " + request.getCardId()));
-        if (!state.getCard().getDeck().getUser().getId().equals(getCurrentUser().getId())) {
-            throw new ResourceNotFoundException("Card not found: " + request.getCardId());
-        }
-        // 2. Đọc interval CŨ trước khi ghi đè (quan trọng!)
-        int before = state.getIntervalDays();
+    public ReviewResultResponse recordReview(CreateReviewRequest request) {
+        // 1 truy vấn: thẻ không tồn tại HOẶC của người khác đều ra rỗng → cùng một 404
+        ReviewState state = reviewStateRepository
+                .findByCardIdAndCardDeckUserId(request.getCardId(), getCurrentUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Card not found: " + request.getCardId()));
 
-        // 3. Chạy SM-2
-        var result = sm2Scheduler.schedule(
-                state.getEasiness(),
-                state.getRepetitions(),
-                state.getIntervalDays(),
-                request.getGrade());
+        boolean typed = request.getMode().getAnswerType() == AnswerType.TYPED;
+        String expected = typed ? state.getCard().getFront() : null;
+        Boolean correct = typed ? AnswerChecker.isCorrect(request.getTypedAnswer(), expected) : null;
 
-        // 4. Cập nhật state từ kết quả
+        // grade client gửi (ghi đè) được ưu tiên; không có thì server suy ra từ đúng/sai.
+        // Validation đã bảo đảm: grade == null thì chắc chắn là chế độ gõ, nên `correct` khác null.
+        int grade = request.getGrade() != null ? request.getGrade() : (correct ? GRADE_CORRECT : GRADE_WRONG);
+
+        int before = state.getIntervalDays();   // đọc interval CŨ trước khi bị ghi đè
+        var result = sm2Scheduler.schedule(state.getEasiness(), state.getRepetitions(), before, grade);
         state.setEasiness(result.easiness())
                 .setRepetitions(result.repetitions())
                 .setIntervalDays(result.intervalDays())
                 .setDueDate(result.dueDate());
-        reviewStateRepository.save(state);
+        // Không cần reviewStateRepository.save(state): entity đang được Hibernate theo dõi
+        // trong @Transactional, lúc commit nó tự UPDATE phần đã đổi (dirty checking).
 
-        // 5. Ghi log
-        ReviewLog log = new ReviewLog()
-                .setGrade(request.getGrade().shortValue())   // Integer → Short
-                .setMode(request.getMode())
+        reviewLogRepository.save(new ReviewLog()
+                .setGrade((short) grade)
+                .setMode(request.getMode().name())
                 .setIntervalBefore(before)
                 .setIntervalAfter(result.intervalDays())
                 .setDurationMs(request.getDurationMs())
-                .setCard(state.getCard());
-        reviewLogRepository.save(log);
+                .setCard(state.getCard()));
+
         return new ReviewResultResponse(
                 result.dueDate(),
                 result.intervalDays(),
                 result.repetitions(),
-                result.easiness()
-        );
+                result.easiness(), correct, expected);
     }
 
 }
