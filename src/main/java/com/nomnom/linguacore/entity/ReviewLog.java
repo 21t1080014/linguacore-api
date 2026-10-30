@@ -27,6 +27,7 @@ public class ReviewLog {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant reviewedAt;
+    private Boolean correct;
 
     public ReviewLog() {
         super();
@@ -51,6 +52,15 @@ public class ReviewLog {
 
     public ReviewLog setGrade(Short grade) {
         this.grade = grade;
+        return this;
+    }
+
+    public Boolean getCorrect() {
+        return correct;
+    }
+
+    public ReviewLog setCorrect(Boolean correct) {
+        this.correct = correct;
         return this;
     }
 
