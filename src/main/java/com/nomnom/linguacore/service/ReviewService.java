@@ -79,7 +79,8 @@ public class ReviewService {
                 .setIntervalBefore(before)
                 .setIntervalAfter(result.intervalDays())
                 .setDurationMs(request.getDurationMs())
-                .setCard(state.getCard()));
+                .setCard(state.getCard())
+                .setCorrect(correct));
 
         return new ReviewResultResponse(
                 result.dueDate(),

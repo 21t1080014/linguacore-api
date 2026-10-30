@@ -15,13 +15,16 @@ public class CreateReviewRequest {
     private String typedAnswer;
     @NotNull
     private ReviewMode mode;
-    private  Integer durationMs;
+    @PositiveOrZero          // chặn số âm
+    @Max(3_600_000)          // tối đa 1 giờ cho một thẻ; lớn hơn là dữ liệu rác làm lệch thống kê
+    private Integer durationMs;
+
 
     @JsonIgnore
-    @AssertTrue(message = "Chế độ tự chấm cần grade, chế độ gõ cần typedAnswer")
+    @AssertTrue(message = "Chế độ tự chấm cần grade, chế độ gõ cần typedAnswer không rỗng")
     public boolean isGradeOrAnswerPresent() {
         if (mode == null) return true;   // lỗi thiếu mode đã do @NotNull báo
-        return mode.getAnswerType() == AnswerType.TYPED ? typedAnswer != null : grade != null;
+        return mode.getAnswerType() == AnswerType.TYPED ? typedAnswer != null && !typedAnswer.isBlank() : grade != null;
     }
     public Long getCardId() {
         return cardId;
