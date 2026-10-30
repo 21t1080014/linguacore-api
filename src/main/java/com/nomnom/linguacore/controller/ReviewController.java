@@ -3,7 +3,6 @@ package com.nomnom.linguacore.controller;
 import com.nomnom.linguacore.dto.request.CreateReviewRequest;
 import com.nomnom.linguacore.dto.response.CardResponse;
 import com.nomnom.linguacore.dto.response.ReviewResultResponse;
-import com.nomnom.linguacore.service.CardService;
 import com.nomnom.linguacore.service.ReviewService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
