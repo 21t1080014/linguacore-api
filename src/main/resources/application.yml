@@ -16,7 +16,9 @@ spring:
     port: 5672
     username: ${RABBITMQ_USER}
     password: ${RABBITMQ_PASSWORD}
-
+  jackson:
+    parser:
+      strict-duplicate-detection: true   # JSON có khoá trùng → lỗi đọc body → 400, thay vì âm thầm lấy giá trị cuối
 jwt:
   secret: ${JWT_SECRET:}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000}

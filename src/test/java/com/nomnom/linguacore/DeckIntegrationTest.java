@@ -16,13 +16,31 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
-
+@Transactional   // mỗi test chạy trong một giao dịch, xong thì rollback → DB không giữ dữ liệu test
 public class DeckIntegrationTest {
     @Autowired
     MockMvc mockMvc;
     @Autowired
     ObjectMapper objectMapper;
+
+    // Đăng ký một tài khoản mới rồi đăng nhập, trả về token.
+    // Gom về một chỗ để mỗi test chỉ cần đổi email, không chép lại 20 dòng.
+    private String dangKyVaDangNhap(String email) throws Exception {
+        String taiKhoan = objectMapper.writeValueAsString(Map.of(
+                "email", email,
+                "password", "matkhau123",
+                "displayName", "Test User"
+        ));
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON).content(taiKhoan))
+                .andExpect(status().isCreated());
+
+        String ketQua = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON).content(taiKhoan))   // dùng lại body: trường displayName thừa bị bỏ qua
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(ketQua).get("token").asText();
+    }
 
     @Test
     void dangKy_roi_dangNhap_nhanDuocToken() throws Exception {
@@ -39,104 +57,47 @@ public class DeckIntegrationTest {
                 .andExpect(jsonPath("$.email").value("test1@example.com"))
                 .andExpect(jsonPath("$.passwordHash").doesNotExist());   // hash KHÔNG được lộ
     }
+
     @Test
     void luongDayDu_dangKy_dangNhap_taoDeck() throws Exception {
-        // 1. Đăng ký
-        String dangKy = objectMapper.writeValueAsString(Map.of(
-                "email", "test2@example.com",
-                "password", "matkhau123",
-                "displayName", "Test Hai"
-        ));
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON).content(dangKy))
-                .andExpect(status().isCreated());
+        String token = dangKyVaDangNhap("test2@example.com");
 
-        // 2. Đăng nhập, LẤY token từ response
-        String dangNhap = objectMapper.writeValueAsString(Map.of(
-                "email", "test2@example.com",
-                "password", "matkhau123"
-        ));
-        String ketQua = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON).content(dangNhap))
-                .andExpect(status().isOk())
-                .andReturn()                          // ← lấy toàn bộ kết quả
-                .getResponse().getContentAsString();  // ← đổi thành chuỗi JSON
-
-        String token = objectMapper.readTree(ketQua).get("token").asText();  // ← bóc trường token
-
-        // 3. Dùng token tạo deck
-        String taoDeck = objectMapper.writeValueAsString(Map.of(
-                "name", "N5 Test", "targetLang", "ja"
-        ));
         mockMvc.perform(post("/api/decks")
-                        .header("Authorization", "Bearer " + token)   // ← đính token
-                        .contentType(MediaType.APPLICATION_JSON).content(taoDeck))
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "N5 Test", "targetLang", "ja"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("N5 Test"));
     }
+
     @Test
     void khongCoToken_thiBiChan() throws Exception {
-        // gọi GET /api/decks mà KHÔNG có header Authorization
+        // gọi GET /api/decks mà KHÔNG có header Authorization → chưa xác thực → 401
         mockMvc.perform(get("/api/decks"))
-                .andExpect(status().isForbidden());
-        // mong đợi: status().isForbidden()   (403, như bạn thấy trong Postman)
+                .andExpect(status().isUnauthorized());
     }
+
     @Test
     void userA_khongThayDeckCuaUserB() throws Exception {
-        // 1. Đăng ký + đăng nhập userA, tạo một deck
-        String dangKy1 = objectMapper.writeValueAsString(Map.of(
-                "email", "test2@example.com",
-                "password", "matkhau123",
-                "displayName", "Test Hai"
-        ));
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON).content(dangKy1))
-                .andExpect(status().isCreated());
+        String tokenA = dangKyVaDangNhap("userA@example.com");
+        String tokenB = dangKyVaDangNhap("userB@example.com");   // email KHÁC userA
 
-        String dangNhap1 = objectMapper.writeValueAsString(Map.of(
-                "email", "test2@example.com",
-                "password", "matkhau123"
-        ));
-        String ketQua = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON).content(dangNhap1))
-                .andExpect(status().isOk())
-                .andReturn()                          // ← lấy toàn bộ kết quả
-                .getResponse().getContentAsString();  // ← đổi thành chuỗi JSON
-
-        String token1 = objectMapper.readTree(ketQua).get("token").asText();  // ← bóc trường token
-
-        String taoDeck1 = objectMapper.writeValueAsString(Map.of(
-                "name", "N5 Test", "targetLang", "ja"
-        ));
-        mockMvc.perform(post("/api/decks")
-                        .header("Authorization", "Bearer " + token1)   // ← đính token
-                        .contentType(MediaType.APPLICATION_JSON).content(taoDeck1))
+        // userA tạo một deck, giữ lại id
+        String deckA = mockMvc.perform(post("/api/decks")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "N5 Test", "targetLang", "ja"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("N5 Test"));
-        // 2. Đăng ký + đăng nhập userB (email khác), lấy token B
-        String dangKy2 = objectMapper.writeValueAsString(Map.of(
-                "email", "test2@example.com",
-                "password", "matkhau123",
-                "displayName", "Test Hai"
-        ));
-        mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON).content(dangKy2))
-                .andExpect(status().isCreated());
+                .andReturn().getResponse().getContentAsString();
+        long deckIdA = objectMapper.readTree(deckA).get("id").asLong();
 
-        String dangNhap2 = objectMapper.writeValueAsString(Map.of(
-                "email", "test1@example.com",
-                "password", "matkhau123"
-        ));
-        String ketQua2 = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON).content(dangNhap2))
+        // userB liệt kê deck: không thấy deck của A
+        mockMvc.perform(get("/api/decks").header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isOk())
-                .andReturn()                          // ← lấy toàn bộ kết quả
-                .getResponse().getContentAsString();  // ← đổi thành chuỗi JSON
-
-        String token2 = objectMapper.readTree(ketQua2).get("token").asText();
-        // 3. GET /api/decks với token B → mong đợi jsonPath("$").isEmpty() hoặc $.length()==0
-        mockMvc.perform(get("/api/decks")
-                .header("Authorization", "Bearer " + token2))
                 .andExpect(jsonPath("$.length()").value(0));
+
+        // userB gọi thẳng id deck của A: 404, không phải 403 → không lộ deck có tồn tại
+        mockMvc.perform(get("/api/decks/" + deckIdA).header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isNotFound());
     }
 }

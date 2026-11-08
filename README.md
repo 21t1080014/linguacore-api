@@ -37,7 +37,7 @@ Built with Spring Boot 3.5, PostgreSQL 16 and JWT authentication, plus a Python 
 
 **Per-user data isolation** — Every deck belongs to a user. A user can only read, update or delete their own data; another user's decks, reviewed cards and AI tasks return `404 Not Found` rather than `403`, so resource existence is not leaked through status codes. Single-card endpoints are currently an exception; see [Known issues](#known-issues).
 
-**Error handling** — A global exception handler maps application errors to HTTP statuses: `404` not found, `409` duplicate, `401` failed login or unknown user, `400` validation failure with per-field messages. Errors outside this handler do not follow the same format or status mapping yet; see [Known issues](#known-issues).
+**Error handling** — A global exception handler maps application errors to HTTP statuses: `404` not found, `409` duplicate, `401` failed login or unknown user, `400` validation failure with per-field messages. A missing or invalid token returns `401`. Malformed JSON — including an unknown enum value such as a lowercase `mode`, or a duplicated key — returns `400`. Error bodies do not share one format yet; see [Known issues](#known-issues).
 
 ---
 
@@ -241,7 +241,7 @@ Running the tests locally requires JDK 21.
 
 **Unit tests** — `Sm2SchedulerTest` has six cases covering every branch of the scheduling algorithm, including the easiness floor and the reset-on-failure path. The scheduler is deliberately a plain class with no Spring or database dependency, so these tests run in milliseconds. `AnswerCheckerTest` covers typed-answer normalization: case, spacing, full-width characters, combining diacritics and curly apostrophes, plus rejection of misspellings and missing diacritics.
 
-**Integration tests** — `DeckIntegrationTest` boots the full application and drives it through MockMvc: registration, login, token-authenticated deck creation, and rejection of a request without a token. Each test runs in a transaction that is rolled back afterwards, so the database is left untouched.
+**Integration tests** — `DeckIntegrationTest` boots the full application and drives it through MockMvc: registration, login, token-authenticated deck creation, `401` for a request without a token, and a case proving that one user can neither list nor fetch another user's deck (`404`). Each test runs in a transaction that is rolled back afterwards, so the database is left untouched.
 
 The integration tests and `LinguacoreApplicationTests` need PostgreSQL on `localhost:5433` with the schema already created (start the stack once; the test configuration does not set `ddl-auto`). Maven does not read `.env`, so set `DB_PASSWORD` and `JWT_EXPIRATION_MS` in your shell: `src/test/resources/application.yml` replaces the main configuration and does not define the token lifetime.
 
@@ -249,12 +249,9 @@ The integration tests and `LinguacoreApplicationTests` need PostgreSQL on `local
 
 ## Known issues
 
-- **Single-card endpoints fail** — `GET`, `PUT` and `DELETE /api/decks/{deckId}/cards/{cardId}` fail for every caller when the card exists, including its owner. `CardService` calls its own `findOwnedCard` directly, so the `@Transactional` annotation does not apply and reading the lazy deck throws `LazyInitializationException`. The response is `403`, while a card that does not exist returns `404`, so existence can be told apart on these endpoints.
-- **Authentication failures return `403`, not `401`** — a missing or invalid token gets `403`, because no authentication entry point is configured. `401` is returned only for a failed login or a token whose user no longer exists.
-- **Malformed JSON returns `403`, not `400`** — for example a lowercase `mode`. The exception handler does not cover unreadable request bodies or unexpected exceptions, and the error path `/error` itself requires authentication.
-- **Error bodies are not uniform** — validation failures use an `errors` object, while other handled errors use `message`.
+- **Single-card endpoints fail** — `GET`, `PUT` and `DELETE /api/decks/{deckId}/cards/{cardId}` fail for every caller when the card exists, including its owner. `CardService` calls its own `findOwnedCard` directly, so the `@Transactional` annotation does not apply and reading the lazy deck throws `LazyInitializationException`. The response is `500`, while a card that does not exist returns `404`, so existence can be told apart on these endpoints.
+- **Error bodies are not uniform** — validation failures use an `errors` object, other handled errors use `message`, framework errors (malformed JSON, unknown paths) use Spring Boot's default body without a message, and the `401` for a missing token has an empty body.
 - **Decks with cards cannot be deleted** — no cascade is configured from decks to cards, so the delete violates the foreign key.
-- **One integration test is wrong** — `userA_khongThayDeckCuaUserB` registers the same email twice and expects `201` both times, then logs in with an email it never registered, so it does not prove isolation between users.
 
 ---
 

@@ -90,6 +90,14 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<!-- JVM chạy test trên Windows lấy tên cũ "Asia/Saigon", Postgres 16 không nhận → khớp với Dockerfile -->
+					<argLine>-Duser.timezone=Asia/Ho_Chi_Minh</argLine>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
