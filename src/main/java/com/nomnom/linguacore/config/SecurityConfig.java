@@ -1,6 +1,7 @@
 package com.nomnom.linguacore.config;
 
 import com.nomnom.linguacore.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -29,6 +30,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll() // lượt chuyển nội bộ sang /error: cho qua, không thì mọi lỗi thành 403
                         .requestMatchers("/api/auth/**").permitAll()   // đăng ký/đăng nhập: mở
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated()                       // còn lại: PHẢI có token
