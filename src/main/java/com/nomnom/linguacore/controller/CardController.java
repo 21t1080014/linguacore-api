@@ -26,9 +26,9 @@ public class CardController {
         return ResponseEntity.status(HttpStatus.CREATED).body(cardResponse);
     }
     @PutMapping("/{cardId}")
-    public ResponseEntity<CardResponse> updateCard(@PathVariable Long cardId, @Valid @RequestBody UpdateCardRequest request){
-        CardResponse cardResponse = cardService.updateCard(cardId,request);
-        return ResponseEntity.ok(cardResponse);
+    public ResponseEntity<CardResponse> updateCard(@PathVariable Long deckId, @PathVariable Long cardId,
+                                                   @Valid @RequestBody UpdateCardRequest request) {
+        return ResponseEntity.ok(cardService.updateCard(deckId, cardId, request));
     }
 
     @GetMapping
@@ -37,12 +37,13 @@ public class CardController {
     }
 
     @GetMapping("/{cardId}")
-    public ResponseEntity<CardResponse> getCardById(@PathVariable  Long cardId ){
-        return ResponseEntity.ok(cardService.getCardById(cardId));
+    public ResponseEntity<CardResponse> getCardById(@PathVariable Long deckId, @PathVariable Long cardId) {
+        return ResponseEntity.ok(cardService.getCardById(deckId, cardId));
     }
+
     @DeleteMapping("/{cardId}")
-    public ResponseEntity<Void> deleteCard(@PathVariable Long cardId){
-        cardService.deleteCard(cardId);
+    public ResponseEntity<Void> deleteCard(@PathVariable Long deckId, @PathVariable Long cardId) {
+        cardService.deleteCard(deckId, cardId);
         return ResponseEntity.noContent().build();
     }
 }

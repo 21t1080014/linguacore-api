@@ -14,7 +14,7 @@ import com.nomnom.linguacore.repository.CardRepository;
 import com.nomnom.linguacore.repository.DeckRepository;
 import com.nomnom.linguacore.repository.ReviewStateRepository;
 import com.nomnom.linguacore.repository.UserRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -41,13 +41,16 @@ public class CardService {
         }
         return deck;
     }
-    @Transactional
-    public Card findOwnedCard(Long id){
-        Card card = cardRepository.findById(id).orElseThrow(()-> new ResourceNotFoundException("Card not found: " +id));
-        if(!card.getDeck().getUser().getId().equals(getCurrentUser().getId())){
-            throw new ResourceNotFoundException("Card not found: " + id);
-        }
-        return card;
+    // AiTaskController gọi hàm này (bean khác) → giữ public
+    public Card findOwnedCard(Long cardId) {
+        return cardRepository.findByIdAndDeckUserId(cardId, getCurrentUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Card not found: " + cardId));
+    }
+
+    // Dùng nội bộ cho các endpoint nằm dưới /api/decks/{deckId}/cards
+    private Card findOwnedCardInDeck(Long deckId, Long cardId) {
+        return cardRepository.findByIdAndDeckIdAndDeckUserId(cardId, deckId, getCurrentUser().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Card not found: " + cardId));
     }
 
     public CardService(CardRepository cardRepository, DeckRepository deckRepository, UserRepository userRepository, ReviewStateRepository reviewStateRepository, CardMapper cardMapper) {
@@ -64,10 +67,10 @@ public class CardService {
         return card.stream().map(cardMapper::toResponse).toList();
     }
 
-    public CardResponse getCardById(Long cardId){
-        Card card = findOwnedCard(cardId);
-        return cardMapper.toResponse(card);
+    public CardResponse getCardById(Long deckId, Long cardId) {
+        return cardMapper.toResponse(findOwnedCardInDeck(deckId, cardId));
     }
+
     @Transactional
     public CardResponse createCard(Long deckId, CreateCardRequest request){
         Deck deck = findOwnedDeck(deckId);
@@ -88,18 +91,18 @@ public class CardService {
         return cardMapper.toResponse(saved);
     }
 
-    public CardResponse updateCard(Long cardId, UpdateCardRequest request){
-       Card card = findOwnedCard(cardId);
-       card.setBack(request.getBack())
-               .setFront(request.getFront())
-               .setPos(request.getPos())
-               .setNote(request.getNote());
-       Card saved = cardRepository.save(card);
-       return cardMapper.toResponse(saved);
+    @Transactional   // dirty checking: card đang được theo dõi → lúc commit tự UPDATE, không cần save()
+    public CardResponse updateCard(Long deckId, Long cardId, UpdateCardRequest request) {
+        Card card = findOwnedCardInDeck(deckId, cardId);
+        card.setBack(request.getBack())
+                .setFront(request.getFront())
+                .setPos(request.getPos())
+                .setNote(request.getNote());
+        return cardMapper.toResponse(card);
     }
 
-    public void deleteCard(Long cardId){
-        Card card = findOwnedCard(cardId);
+    public void deleteCard(Long deckId, Long cardId) {
+        Card card = findOwnedCardInDeck(deckId, cardId);
         cardRepository.delete(card);
     }
 
