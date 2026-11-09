@@ -6,10 +6,15 @@ import com.nomnom.linguacore.entity.Deck;
 import com.nomnom.linguacore.entity.User;
 import com.nomnom.linguacore.exception.ResourceNotFoundException;
 import com.nomnom.linguacore.exception.UnauthorizedException;
+import com.nomnom.linguacore.repository.AiTaskRepository;
+import com.nomnom.linguacore.repository.CardRepository;
 import com.nomnom.linguacore.repository.DeckRepository;
+import com.nomnom.linguacore.repository.ReviewLogRepository;
+import com.nomnom.linguacore.repository.ReviewStateRepository;
 import com.nomnom.linguacore.repository.UserRepository;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,11 +22,28 @@ import java.util.List;
 public class DeckService {
     private final UserRepository userRepository;
     private final DeckRepository deckRepository;
+    private final CardRepository cardRepository;
+    private final ReviewStateRepository reviewStateRepository;
+    private final ReviewLogRepository reviewLogRepository;
+    private final AiTaskRepository aiTaskRepository;
+
+    public DeckService(UserRepository userRepository, DeckRepository deckRepository, CardRepository cardRepository,
+                       ReviewStateRepository reviewStateRepository, ReviewLogRepository reviewLogRepository,
+                       AiTaskRepository aiTaskRepository) {
+        this.userRepository = userRepository;
+        this.deckRepository = deckRepository;
+        this.cardRepository = cardRepository;
+        this.reviewStateRepository = reviewStateRepository;
+        this.reviewLogRepository = reviewLogRepository;
+        this.aiTaskRepository = aiTaskRepository;
+    }
+
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new UnauthorizedException("Không xác định được người dùng"));
     }
+
     private Deck findOwnedDeck(Long id) {
         Deck deck = deckRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Deck not found: " + id));
@@ -31,7 +53,7 @@ public class DeckService {
         return deck;
     }
 
-    private DeckResponse toResponse(Deck saved){
+    private DeckResponse toResponse(Deck saved) {
         return new DeckResponse(
                 saved.getId(),
                 saved.getName(),
@@ -41,12 +63,7 @@ public class DeckService {
         );
     }
 
-    public DeckService(UserRepository userRepository, DeckRepository deckRepository) {
-        this.userRepository = userRepository;
-        this.deckRepository = deckRepository;
-    }
-
-    public DeckResponse createDeck(CreateDeckRequest request){
+    public DeckResponse createDeck(CreateDeckRequest request) {
         Deck deck = new Deck()
                 .setName(request.getName())
                 .setTargetLang(request.getTargetLang())
@@ -56,7 +73,7 @@ public class DeckService {
         return toResponse(saved);
     }
 
-    public DeckResponse updateDeck(Long id,CreateDeckRequest request){
+    public DeckResponse updateDeck(Long id, CreateDeckRequest request) {
         Deck deckEntity = findOwnedDeck(id);
         deckEntity.setName(request.getName());
         deckEntity.setDescription(request.getDescription());
@@ -65,20 +82,27 @@ public class DeckService {
         return toResponse(updated);
     }
 
-    public void deleteDeck(Long id){
-        Deck deck = findOwnedDeck(id);
+    // Khoá ngoại đều NO ACTION → xoá từ ngọn xuống gốc: dữ liệu của thẻ → thẻ → deck.
+    // Mỗi bảng chỉ MỘT câu DELETE dù deck có bao nhiêu thẻ.
+    // @Transactional: lỗi ở bất kỳ câu nào thì cả 5 câu cùng huỷ → không bao giờ còn deck xoá dở.
+    @Transactional
+    public void deleteDeck(Long id) {
+        Deck deck = findOwnedDeck(id);   // kiểm tra quyền TRƯỚC khi xoá bất cứ thứ gì
+        aiTaskRepository.bulkDeleteByDeckId(id);
+        reviewLogRepository.bulkDeleteByDeckId(id);
+        reviewStateRepository.bulkDeleteByDeckId(id);
+        cardRepository.bulkDeleteByDeckId(id);
         deckRepository.delete(deck);
     }
 
-   public List<DeckResponse> getAllDecks(){
-       return deckRepository.findByUserId(getCurrentUser().getId())
-               .stream()
-               .map(this::toResponse)
-               .toList();
-   }
+    public List<DeckResponse> getAllDecks() {
+        return deckRepository.findByUserId(getCurrentUser().getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
 
-   public DeckResponse getDeckById(Long id){
-       Deck deck = findOwnedDeck(id);
-        return toResponse(deck);
-   }
+    public DeckResponse getDeckById(Long id) {
+        return toResponse(findOwnedDeck(id));
+    }
 }
