@@ -53,12 +53,8 @@ public class CardService {
     }
 
     private Deck findOwnedDeck(Long id) {
-        Deck deck = deckRepository.findById(id)
+        return deckRepository.findByIdAndUserId(id, getCurrentUser().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Deck not found: " + id));
-        if (!deck.getUser().getId().equals(getCurrentUser().getId())) {
-            throw new ResourceNotFoundException("Deck not found: " + id);
-        }
-        return deck;
     }
 
     // AiTaskController gọi hàm này (bean khác) → giữ public
