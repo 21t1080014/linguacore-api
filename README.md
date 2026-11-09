@@ -25,7 +25,7 @@ Built with Spring Boot 3.5, PostgreSQL 16 and JWT authentication, plus a Python 
 
 ## Features
 
-**Deck & card management** — CRUD for decks and cards, with cards nested under their parent deck (`/api/decks/{deckId}/cards`). Some delete and single-card operations currently fail; see [Known issues](#known-issues).
+**Deck & card management** — CRUD for decks and cards, with cards nested under their parent deck (`/api/decks/{deckId}/cards`). Deleting a card also deletes its review state, review history and AI tasks; deleting a deck does the same for every card in it, in one transaction.
 
 **SM-2 spaced repetition** — Implemented from scratch, not from a library. Each review updates the card's easiness factor, repetition count and interval; the next due date is derived from those. Fully covered by unit tests across every branch.
 
@@ -35,7 +35,7 @@ Built with Spring Boot 3.5, PostgreSQL 16 and JWT authentication, plus a Python 
 
 **JWT authentication** — Register, log in, receive a signed token. A custom filter validates the token on every request and places the caller's identity into the security context. Stateless: no sessions stored server-side.
 
-**Per-user data isolation** — Every deck belongs to a user. A user can only read, update or delete their own data; another user's decks, reviewed cards and AI tasks return `404 Not Found` rather than `403`, so resource existence is not leaked through status codes. Single-card endpoints are currently an exception; see [Known issues](#known-issues).
+**Per-user data isolation** — Every deck belongs to a user. A user can only read, update or delete their own data; another user's decks, reviewed cards and AI tasks return `404 Not Found` rather than `403`, so resource existence is not leaked through status codes. A card is looked up by its id, its deck and its owner in a single query, so a card requested under the wrong deck also returns `404`.
 
 **Error handling** — A global exception handler maps application errors to HTTP statuses: `404` not found, `409` duplicate, `401` failed login or unknown user, `400` validation failure with per-field messages. A missing or invalid token returns `401`. Malformed JSON — including an unknown enum value such as a lowercase `mode`, or a duplicated key — returns `400`. Error bodies do not share one format yet; see [Known issues](#known-issues).
 
@@ -121,7 +121,7 @@ All endpoints except `/api/auth/**` and the Swagger UI / OpenAPI docs require an
 | GET | `/api/decks/{id}` | Get one deck |
 | POST | `/api/decks` | Create a deck |
 | PUT | `/api/decks/{id}` | Update a deck |
-| DELETE | `/api/decks/{id}` | Delete a deck |
+| DELETE | `/api/decks/{id}` | Delete a deck with all its cards and their review history |
 
 ### Cards
 | Method | Endpoint | Description |
@@ -130,7 +130,7 @@ All endpoints except `/api/auth/**` and the Swagger UI / OpenAPI docs require an
 | GET | `/api/decks/{deckId}/cards/{cardId}` | Get one card |
 | POST | `/api/decks/{deckId}/cards` | Add a card |
 | PUT | `/api/decks/{deckId}/cards/{cardId}` | Update a card |
-| DELETE | `/api/decks/{deckId}/cards/{cardId}` | Delete a card |
+| DELETE | `/api/decks/{deckId}/cards/{cardId}` | Delete a card with its review history |
 
 ### Reviews
 | Method | Endpoint | Description |
@@ -249,9 +249,7 @@ The integration tests and `LinguacoreApplicationTests` need PostgreSQL on `local
 
 ## Known issues
 
-- **Single-card endpoints fail** — `GET`, `PUT` and `DELETE /api/decks/{deckId}/cards/{cardId}` fail for every caller when the card exists, including its owner. `CardService` calls its own `findOwnedCard` directly, so the `@Transactional` annotation does not apply and reading the lazy deck throws `LazyInitializationException`. The response is `500`, while a card that does not exist returns `404`, so existence can be told apart on these endpoints.
 - **Error bodies are not uniform** — validation failures use an `errors` object, other handled errors use `message`, framework errors (malformed JSON, unknown paths) use Spring Boot's default body without a message, and the `401` for a missing token has an empty body.
-- **Decks with cards cannot be deleted** — no cascade is configured from decks to cards, so the delete violates the foreign key.
 
 ---
 
