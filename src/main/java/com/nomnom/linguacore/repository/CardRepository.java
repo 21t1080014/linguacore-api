@@ -2,6 +2,9 @@ package com.nomnom.linguacore.repository;
 
 import com.nomnom.linguacore.entity.Card;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -11,4 +14,7 @@ public interface CardRepository extends JpaRepository<Card, Long> {
     // Lọc chủ sở hữu ngay trong SQL: thẻ không tồn tại hay của người khác đều ra rỗng → cùng một 404
     Optional<Card> findByIdAndDeckUserId(Long id, Long userId);                        // AiTaskController: URL không có deckId
     Optional<Card> findByIdAndDeckIdAndDeckUserId(Long id, Long deckId, Long userId);  // /api/decks/{deckId}/cards/{cardId}
+    @Modifying
+    @Query("delete from Card c where c.deck.id = :deckId")
+    void bulkDeleteByDeckId(@Param("deckId") Long deckId);
 }

@@ -20,4 +20,7 @@ public interface ReviewStateRepository extends JpaRepository<ReviewState,Long> {
     @Modifying
     @Query("delete from ReviewState s where s.card.id = :cardId")
     void bulkDeleteByCardId(@Param("cardId") Long cardId);
+    @Modifying
+    @Query("delete from ReviewState s where s.card.id in (select c.id from Card c where c.deck.id = :deckId)")
+    void bulkDeleteByDeckId(@Param("deckId") Long deckId);
 }
